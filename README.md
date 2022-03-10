@@ -81,5 +81,6 @@ sysrc(8) cannot (yet) handle the following files:
 ```
 /boot.config
 /etc/resolv.conf
+vm.max_user_wired=-1 in /etc/sysctl.conf
 ```
 This project is not an endorsement of GitHub
