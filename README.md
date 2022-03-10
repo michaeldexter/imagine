@@ -1,6 +1,6 @@
 ## imagine.sh: A script to configure FreeBSD VM images for lab and production use
 
-This script downloads a FreeBSD official release or current "VM-IMAGE" and modifies it using in-base tools such as sysrc(8) for boot on virtual and hardware-machines. The official FreeBSD VM images have the advantages of being configured for DHCP by default, include growfs, and most importantly, their weekly snapshots can be retrieved from a consistent URL. FreeBSD VM images are UFS formatted which makes them desirable for benchmarking OpenZFS on separate storage devices.
+This script, the "image engine", downloads a FreeBSD official release or current "VM-IMAGE" and modifies it using in-base tools such as sysrc(8) for boot on virtual and hardware-machines. The official FreeBSD VM images have the advantages of being configured for DHCP by default, include growfs, and most importantly, their weekly snapshots can be retrieved from a consistent URL. FreeBSD VM images are UFS formatted which makes them desirable for benchmarking OpenZFS on separate storage devices.
 
 Note that this requires use of the /media mount point, administrative privileges, and the work directory is set to /root, into which it will create imagine-work.
 
