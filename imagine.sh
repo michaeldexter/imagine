@@ -26,7 +26,7 @@
 # IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-# Version v0
+# Version v0.1
 # VARIABLES - NOTE THE VERSIONED ONES
 
 password="freebsd"
@@ -53,7 +53,7 @@ current_src_url="https://download.freebsd.org/ftp/snapshots/amd64/amd64/14.0-CUR
 
 [ -d "$work_dir" ] || mkdir -p $work_dir
 
-echo ; echo What version would you like to download? \(release\)/\(current\)
+echo ; echo What version would you like to configure? \(release\)/\(current\)
 read version
 
 if [ "$version" = "release" ] ; then
@@ -77,8 +77,8 @@ xzimg="$( basename "$img_url" )"
 img="${xzimg%.xz}"
 
 echo Unmouting /media
-# THIS TEST IS NOT RELIABLE
-mount | grep "/media" && umount -f /media #|| \
+# THIS TEST IS NOT RELIABLE - make a better one
+#mount | grep "/media" && umount -f /media || \
 #	{ echo /media failed to unmount ; exit 1 ; }
 
 # FOR WANT OF A RELIABLE TEST
@@ -216,15 +216,14 @@ echo "$password" | pw -R /media/ usermod -n root -h 0
 echo ; echo Enable serial port? \(y/n\) ; read serial
 if [ "$serial" = "y" ] ; then
 	echo Configurating /boot.config and /boot/loader.conf for serial output
-	# sysrc does not support this
 
-# sysrc does not support this and attempting idempotence
-if [ -f /media/boot.config ] ; then
-	grep S115200 /media/boot.config || \
-		printf "%s" "-D -h -S115200 -v" >> /media/boot.config
-else
-	printf "%s" "-h -S115200 -v" > /media/boot.config
-fi
+	# sysrc does not support this and attempting idempotence
+	if [ -f /media/boot.config ] ; then
+		grep S115200 /media/boot.config || \
+			printf "%s" "-D -h -S115200 -v" >> /media/boot.config
+	else
+		printf "%s" "-h -S115200 -v" > /media/boot.config
+	fi
 
 	sysrc -f /media/boot/loader.conf boot_multicons="YES"
 	sysrc -f /media/boot/loader.conf boot_serial="YES"

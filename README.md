@@ -1,6 +1,6 @@
 ## imagine.sh: A script to configure FreeBSD VM images for lab and production use
 
-This script, the "image engine", downloads a FreeBSD official release or current "VM-IMAGE" and modifies it using in-base tools such as sysrc(8) for boot on virtual and hardware-machines. The official FreeBSD VM images have the advantages of being configured for DHCP by default, include growfs, and most importantly, their weekly snapshots can be retrieved from a consistent URL. FreeBSD VM images are UFS formatted which makes them desirable for benchmarking OpenZFS on separate storage devices.
+This script downloads a FreeBSD official release or current "VM-IMAGE" and modifies it using in-base tools such as sysrc(8) for boot on virtual and hardware-machines. The official FreeBSD VM images have the advantages of being configured for DHCP by default, include growfs, and most importantly, their weekly snapshots can be retrieved from a consistent URL. FreeBSD VM images are UFS formatted which makes them desirable for benchmarking OpenZFS on separate storage devices.
 
 Note that this requires use of the /media mount point, administrative privileges, and the work directory is set to /root, into which it will create imagine-work.
 
@@ -56,8 +56,10 @@ UserKnownHostsFile /dev/null
 
 This is designed to be re-run, decompressing the compressed VM image each time it is run. It will ask to re-download an image if it finds one, with weekly snapshots in mind. Accordingly, separate "working" and "bits" directories are used, the working one for the VM images and the "bits" one, for preconfigured items such as a .ssh directory to be copied in:
 
-Work directory: /root/imagine-work/current|release
-Bits directory: /lab/imagine-bits
+```
+/root/imagine-work/current|release	# Work Directory
+/lab/imagine-bits			# Bits Directory
+```
 
 Consider sharing the "bits" directory over NFS and in the example case, the "labnfs.sh" script performs a workstation connection to that share.
 
@@ -71,16 +73,17 @@ This is tested with FreeBSD 13.0 and 14 VM images on a 13.0 host.
 * Design a better "is /media mounted" check
 * Offer to truncate the VM image larger, particularly for packages and /usr/src
 * Verify that the configured image will fit a requested hardware device
+* Consider incorporating [ec2-scripts](https://github.com/cperciva/ec2-scripts) - [Article]( https://www.daemonology.net/blog/2013-12-09-FreeBSD-EC2-configinit.html) - [Package]( https://www.freshports.org/sysutils/firstboot-pkgs/)
+* Consider dumping and restoring to a zpool
 * OMG make it more clear in pkg(8) that it supports installing packages from a release host to a current directory/jail/mounted VM
 
 ## Trivia
 
 The project name was vm-image-prep during development and briefly "imagination", but that is way too long and typo-prone.
 
-sysrc(8) cannot (yet) handle the following files:
+sysrc(8) cannot (yet) handle the following files because of confilcts with shell variable syntax, but it will warn of failures:
 ```
 /boot.config
 /etc/resolv.conf
-vm.max_user_wired=-1 in /etc/sysctl.conf
 ```
 This project is not an endorsement of GitHub
