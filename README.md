@@ -37,10 +37,11 @@ Installing /usr/src and Xen Dom0 configuration are currently only performed afte
 * autoboot_delay is set to five seconds
 * Install packages, even if configuring a current image on a release host
 * Change networking from "DHCP on all interfaces" to fixed or WiFi
-* Optionally support serial output
+* Optional image root file system resizing and partition growth
+* Optional support serial output
+* Optionally add /usr/src to a rezied and grown file system
 * Optionally prepare the image to be a Xen Dom0 host using xenomorph
-* Optionally dd(1) the VM image to a hardware device, growing the root partition
-* Optionally add /usr/src to a hardware device with a grown file system
+* Optionally dd(1) the VM image to a hardware device, optionally growing the root partition
 
 Add your modifications! It is simply a shell script!
 

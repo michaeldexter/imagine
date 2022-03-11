@@ -26,7 +26,7 @@
 # IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-# Version v0.1
+# Version v0.2
 # VARIABLES - NOTE THE VERSIONED ONES
 
 password="freebsd"
@@ -87,7 +87,10 @@ mdconfig -du "$md_id" > /dev/null 2>&1
 mdconfig -du "$md_id" > /dev/null 2>&1
 
 echo Removing previous VM image if present
+# Think long and hard of if one shoul be able to re-use an image that they
+# have likely configured to some degree
 [ -f $work_dir/$version/$img ] && rm $work_dir/$version/$img
+[ -f $work_dir/$version/${img}.gz ] && rm $work_dir/$version/${img}.gz
 
 if [ -f $work_dir/$version/$xzimg ] ; then
 	echo $xzimg exists. Download fresh? \(y/n\) ; read fresh
@@ -118,13 +121,41 @@ fi
 file -s $work_dir/$version/$img | grep "boot sector" || \
 	{ echo $work_dir/$version/$img not a disk image? ; exit 1 ; }
 
+echo ; echo Grow the image from from the default of 5GB? \(y/n\)
+echo Consider 8G for sources and use as a Xen Dom0 \(y/n\)
+read grow
+if [ "$grow" = "y" ] ; then
+	echo ; echo Grow to how many GB? i.e. 10G
+	echo Consider 8G for sources and use as a Xen Dom0
+	# Would be nice to valildate this input
+	read imgsize
+	truncate -s $imgsize $work_dir/$version/$img ||
+		{ echo image truncate failed. Invalid size? ; exit 1 ; }
+fi
+
 echo ; echo Attaching $work_dir/$version/$img
 mdconfig -a -u "$md_id" -f $work_dir/$version/$img
 mdconfig -lv
 
-echo ; echo Mounting $md_id to /media
+if [ "$grow" = "y" ] ; then
+	echo ; echo Recovering $device partitioning
+	gpart recover $md_id || \
+		{ echo gpart recovery failed ; exit 1 ; }
 
+	echo ; echo Resizing ${device}p4
+	gpart resize -i 4 $md_id || \
+		{ echo gpart resize failed ; exit 1 ; }
+
+	echo ; echo Growing /dev/${device}p4
+	growfs /dev/${md_id}p4 || \
+		{ echo growfs failed ; exit 1 ; }
+fi
+
+echo ; echo Mounting ${md_id}p4 to /media
 mount /dev/${md_id}p4 /media || { echo mount failed ; exit 1 ; }
+
+gpart show /dev/$md_id
+df -h |grep media
 
 
 # UNIVERSAL SETTINGS
@@ -160,7 +191,7 @@ echo ; echo Shortening autoboot_delay
 sysrc -f /media/boot/loader.conf autoboot_delay=5
 
 
-# NETWORKING SETTINGS
+# NETWORKING
 
 echo ; echo Enter \(wifi/fixed\) or nothing for DHPC
 read net
@@ -209,9 +240,15 @@ EOF
 	;;
 esac
 
+
+# ROOT PASSWORD
+
 echo ; echo Setting root password with pw
 #pw -R /media/
 echo "$password" | pw -R /media/ usermod -n root -h 0
+
+
+# SERIAL OUTPUT
 
 echo ; echo Enable serial port? \(y/n\) ; read serial
 if [ "$serial" = "y" ] ; then
@@ -220,9 +257,11 @@ if [ "$serial" = "y" ] ; then
 	# sysrc does not support this and attempting idempotence
 	if [ -f /media/boot.config ] ; then
 		grep S115200 /media/boot.config || \
-			printf "%s" "-D -h -S115200 -v" >> /media/boot.config
+			echo "-S115200 -v" >> /media/boot.config
+			#printf "%s" "-S115200 -v" >> /media/boot.config
 	else
-		printf "%s" "-h -S115200 -v" > /media/boot.config
+		#printf "%s" "-S115200 -v" > /media/boot.config
+		echo "-S115200 -v" > /media/boot.config
 	fi
 
 	sysrc -f /media/boot/loader.conf boot_multicons="YES"
@@ -245,7 +284,7 @@ echo ; echo Searching for PermitRootLogin in sshd_config
 grep PermitRootLogin /media/etc/ssh/sshd_config
 
 
-# REMOVE AND ADD ENTRIES TO MEET YOUR NEEDS
+# LOCAL CUSTOMIZATION - ADJUST TO SUIT
 
 echo ; echo Copying in .ssh directory if present
 [ -d "$bits_dir/.ssh" ] && cp -rp $bits_dir/.ssh /media/root/
@@ -262,54 +301,18 @@ echo ; echo Installing Packages
 # But, the arguments must be in this precise order to work
 pkg -r /media install -y $packages
 
-echo ; echo Reviewing boot.config loader.conf rc.conf resolv.conf
 
-# Note that the boot.config serial entry does not have a line feed
-echo ; cat /media/boot.config
-cat /media/boot/loader.conf
-echo ; cat /media/etc/sysctl.conf
-echo ; cat /media/etc/rc.conf
-echo ; cat /media/etc/resolv.conf
-
-echo ; echo About to unmount /media.
-echo  Make any final changes now and press Enter when finished ; read lastchance
-
-echo ; echo Unmounting /media
-umount /media || { echo umount failed ; exit 1 ; }
-
-echo ; echo Destroying $md_id
-mdconfig -du $md_id || { echo $md_id destroy failed ; mdconfig -lv ; exit 1 ; }
-
-echo ; echo dd the configured VM image to a hardware device? \(y/n\) ; read dd 
-[ "$dd" = "y" ] || exit 0
-
-echo ; echo The availble hardware devices are:
-
-sysctl kern.disks
-
-echo ; echo What device would you like to dd the VM image to?
-read device
-
-echo ; echo diskinfo -v for $device reads
-diskinfo -v $device
-
-echo ; echo WARNING! About to write $img to $device! ; echo
-echo ; echo Continue? \(y/n\) ; read warning
-[ "$warning" = "y" ] || exit 0
-
-\time -h dd if=$img of=/dev/$device bs=1m conv=sync || \
-	{ echo dd operation failed ; exit 1 ; }
-
-echo ; echo Recovering $device partitioning
-gpart recover $device
-
-echo ; echo Resizing ${device}p4
-gpart resize -i 4 $device
-echo ; echo Growing /dev/${device}p4
-growfs /dev/${device}p4
+# OPTIONAL SOURCES
 
 echo ; echo Install /usr/src? \(y/n\) ; read src
 if [ "$src" = "y" ] ; then
+
+	if [ ! "$grow" = "y" ] ; then
+		echo ; echo WARNING! It appers that you did not grow the image!
+		echo src installation will likely fail. Continue? \(y/n\)
+		read ungrown
+		[ "$ungrown" = "y" ] || exit 1
+	fi
 
 	if [ -f $work_dir/$version/src.txz ] ; then
 		echo $work_dir/$version/src.txz exists. Fetch fresh? \(y/n\)
@@ -326,43 +329,110 @@ if [ "$src" = "y" ] ; then
 		fetch $src_url
 	fi
 
-	echo ; echo Mounting /dev/${device}p4 on /media
-	mount /dev/${device}p4 /media || \
-		{ echo /dev/${device}p4 failed to mount ; exit 1 ; }
-
 	echo ; echo Extracting src.txz to /media
 	cat src.txz | tar -xf - -C /media/
 
 	echo ; echo Listing /media/usr/src ; ls /media/usr/src
 fi
 
+
+# OPTIONAL XEN DOM0 SUPPORT
+# This will perform a second package installation but that is probably
+# preferable to something like a $xen_packages string in the original
+
 echo ; echo Configure system as a Xen Dom0? \(y/n\) ; read xen
 if [ "$xen" = "y" ] ; then
 
-	echo ; echo How much Dom0 RAM? i.e. 2048, 4096, 8192, or 16384...
+	echo ; echo How much Dom0 RAM? i.e. 2048, 4096, 8192, 16384...
 	read dom0_mem
 
-	echo ; echo How many Dom0 CPUs? i.e. 2, 4, 8, or 16...
+	echo ; echo How many Dom0 CPUs? i.e. 2, 4, 8, 16...
 	read dom0_cpus
 
-	if [ "$uefi" = "y" ] ; then
-		uefi_string="-e"
-	fi
+# Sounds wrong
+#	if [ "$uefi" = "y" ] ; then
+#		uefi_string="-e"
+#	fi
 
 	if [ "$serial" = "y" ] ; then
-		serial_string="-s"
+		#serial_string="-s"
+		serial_string="console=vga,com1 com1=115200,8n1"
 	fi
 
-	xenomorph -r /media -m $dom0_mem -c $dom0_cpus $uefi_string $serial_string || \
+#	xenomorph -r /media -m $dom0_mem -c $dom0_cpus $uefi_string $serial_string || \
+	xenomorph -r /media -m $dom0_mem -c $dom0_cpus $serial_string || \
 		{ echo xenomorph failed ; exit 1 ; }
 fi
 
-echo ; echo This is your last chance to modify the VM image mounted on /media
-echo ; echo Unmount the configured image? \(y/n\) ; read bye
-[ "$bye" = "y" ] || exit 0
+
+# FINAL REVIEW
+
+echo ; echo Reviewing boot.config loader.conf rc.conf resolv.conf
+
+# Note that the boot.config serial entry does not have a line feed
+echo ; [ -f /media/boot.config ] && cat /media/boot.config
+echo ; [ -f /media/boot/loader.conf ] && cat /media/boot/loader.conf
+echo ; [ -f /media/etc/sysctl.conf ] && cat /media/etc/sysctl.conf
+echo ; cat /media/etc/rc.conf
+echo ; [ -f /media/etc/resolv.conf ] && cat /media/etc/resolv.conf
+
+echo ; echo About to unmount /media.
+echo  Make any final changes now and press Enter when finished ; read lastchance
 
 echo ; echo Unmounting /media
-umount /media
+umount /media || { echo umount failed ; exit 1 ; }
+
+echo ; echo Destroying $md_id
+mdconfig -du $md_id || { echo $md_id destroy failed ; mdconfig -lv ; exit 1 ; }
+
+
+# HARDWARE DEVICE HANDLING
+
+# Mention zvols?
+
+echo ; echo dd the configured VM image to a device? \(y/n\) ; read dd 
+[ "$dd" = "y" ] || exit 0
+
+echo ; echo The availble devices are:
+# Mention zvols?
+
+sysctl kern.disks
+
+echo ; echo What device would you like to dd the VM image to?
+read device
+
+echo ; echo diskinfo -v for $device reads
+diskinfo -v $device
+
+echo ; echo WARNING! About to write $img to $device! ; echo
+echo ; echo Continue? \(y/n\) ; read warning
+# Consider progress feedback
+[ "$warning" = "y" ] || exit 0
+
+\time -h dd if=$img of=/dev/$device bs=1m conv=sync || \
+	{ echo dd operation failed ; exit 1 ; }
+
+echo ; echo Recovering $device partitioning
+gpart recover $device
+
+echo ; echo Resize the device to fill the available space? \(y/n\)
+read secondresize
+if [ "$secondresize" = "y" ] ; then
+	echo ; echo Resizing ${device}p4
+	gpart resize -i 4 $device
+	echo ; echo Growing /dev/${device}p4
+	growfs /dev/${device}p4
+fi
+
+# OPTIONAL GZIP COMPRESSION
+
+# gzip because it is more compatible and will not override the upstream image
+
+echo ; echo gzip compress the configured image file? \(y/n\) ; read gzip
+if [ "$gzip" = "y" ] ; then
+	gzip $img || { echo gzip failed ; exit 1 ; }
+# Consider progress feedback
+fi
 
 echo ; echo Have a nice day!
 exit 0
