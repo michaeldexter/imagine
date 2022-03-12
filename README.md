@@ -91,4 +91,17 @@ sysrc(8) cannot (yet) handle the following files because of confilcts with shell
 /boot.config
 /etc/resolv.conf
 ```
+
+Do not be alarmed by this rc.conf output on 14-CURRENT. It is a but in the release enginnering process and not imagine.sh or sysrc:
+```
+hostname="freebsd"
+ifconfig_DEFAULT="DHCP inet6 accept_rtadv"
+growfs_enable="YES"
+hostname="freebsd"
+ifconfig_DEFAULT="DHCP inet6 accept_rtadv"
+growfs_enable="YES"
+hostname="freebsd"
+ifconfig_DEFAULT="DHCP inet6 accept_rtadv"
+growfs_enable="YES"
+```
 This project is not an endorsement of GitHub
