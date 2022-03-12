@@ -144,7 +144,7 @@ if [ "$grow" = "y" ] ; then
 	echo Consider 8G for sources and use as a Xen Dom0
 	# Would be nice to valildate this input
 	read imgsize
-	truncate -s "$imgsize $work_dir/$version/$img" ||
+	truncate -s "$imgsize" "$work_dir/$version/$img" ||
 		{ echo image truncate failed. Invalid size? ; exit 1 ; }
 fi
 
