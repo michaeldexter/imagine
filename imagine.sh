@@ -26,7 +26,7 @@
 # IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-# Version v0.2
+# Version v0.3
 # VARIABLES - NOTE THE VERSIONED ONES
 
 password="freebsd"
@@ -35,7 +35,7 @@ wifi_pass="my_wifi_password"
 subnet="10.0.0"
 work_dir="/root/imagine-work"
 bits_dir="/lab/imagine-bits"
-packages="tmux rsync smartmontools smart fio git-lite iperf3"
+packages="tmux rsync smartmontools smart fio git-lite iperf3 xen-guest-tools"
 md_id="md43"
 
 release_img_url="https://download.freebsd.org/ftp/releases/VM-IMAGES/13.0-RELEASE/amd64/Latest/FreeBSD-13.0-RELEASE-amd64.raw.xz"
@@ -51,7 +51,7 @@ current_src_url="https://download.freebsd.org/ftp/snapshots/amd64/amd64/14.0-CUR
 . ./lib_xenomorph.sh || \
 	{ echo lib_xenomorph.sh failed to source ; exit 1 ; }
 
-[ -d "$work_dir" ] || mkdir -p $work_dir
+[ -d "$work_dir" ] || mkdir -p "$work_dir"
 
 echo ; echo What version would you like to configure? \(release\)/\(current\)
 read version
@@ -71,10 +71,11 @@ fi
 
 src_dir="$work_dir/$version"
 
-[ -d "$src_dir" ] || mkdir -p $src_dir
+[ -d "$src_dir" ] || mkdir -p "$src_dir"
 
 xzimg="$( basename "$img_url" )"
 img="${xzimg%.xz}"
+img_base="${img%.raw}"
 
 echo Unmouting /media
 # THIS TEST IS NOT RELIABLE - make a better one
@@ -82,79 +83,93 @@ echo Unmouting /media
 #	{ echo /media failed to unmount ; exit 1 ; }
 
 # FOR WANT OF A RELIABLE TEST
-umount -f /media
+umount -f /media > /dev/null 2>&1
 mdconfig -du "$md_id" > /dev/null 2>&1
 mdconfig -du "$md_id" > /dev/null 2>&1
 
-echo Removing previous VM image if present
-# Think long and hard of if one shoul be able to re-use an image that they
-# have likely configured to some degree
-[ -f $work_dir/$version/$img ] && rm $work_dir/$version/$img
-[ -f $work_dir/$version/${img}.gz ] && rm $work_dir/$version/${img}.gz
-
-if [ -f $work_dir/$version/$xzimg ] ; then
+if [ -f "$work_dir/$version/$xzimg" ] ; then
 	echo $xzimg exists. Download fresh? \(y/n\) ; read fresh
 	if [ "$fresh" = "y" ] ; then
-		rm $work_dir/$version/$xzimg
+		rm "$work_dir/$version/$xzimg"
 		echo ; echo Feching $img from $img_url
 		# NOT WORKING
 		#fetch -qo - $img_url | tar -xf -
-		cd $work_dir/$version
+		cd "$work_dir/$version"
 
-		#fetch -i $img_url
+		#fetch -i "$img_url"
 		# Does -i require the file to exist, else fails?
-		fetch $img_url
-		echo ; echo Uncompressing $xzimg
-		unxz --keep $xzimg
+		fetch "$img_url"
 	else
-		cd $work_dir/$version
-		echo ; echo Uncompressing $xzimg
-		unxz --keep $xzimg
+		cd "$work_dir/$version"
 	fi
 else
-	cd $work_dir/$version
-	fetch $img_url
-	echo ; echo Uncompressing $xzimg
-	unxz --keep $xzimg
+	cd "$work_dir/$version"
+	fetch "$img_url"
 fi
 
-file -s $work_dir/$version/$img | grep "boot sector" || \
+# Useful while testing, strongly discouraged for use
+#if [ -f "$work_dir/$version/$img" ] ; then
+#	echo ; echo $img exists. Reuse uncompressed image? \(y/n\)
+#	echo This is strongly discouraged if partially configured!
+#	read reuse
+#	if ! [ "$reuse" = "y" ] ; then
+
+		echo Removing previous VM image if present
+		[ -f "$work_dir/$version/$img" ] && rm "$work_dir/$version/$img"
+		[ -f "$work_dir/$version/${img}.gz" ] && \
+			rm "$work_dir/$version/${img}.gz"
+		[ -f "$work_dir/$version/${img_base}-flat.vmdk" ] && \
+			rm "$work_dir/$version/${img_base}-flat.vmdk"
+
+		cd "$work_dir/$version"
+		echo ; echo Uncompressing "$xzimg"
+		unxz --verbose --keep "$xzimg"
+#	fi
+#fi
+
+
+# IMAGE SMOKE TEST
+
+file -s "$work_dir/$version/$img" | grep "boot sector" || \
 	{ echo $work_dir/$version/$img not a disk image? ; exit 1 ; }
 
+
+# OPTIONAL RESIZE
+
 echo ; echo Grow the image from from the default of 5GB? \(y/n\)
-echo Consider 8G for sources and use as a Xen Dom0 \(y/n\)
+echo Consider 8G for sources and use as a Xen Dom0
 read grow
 if [ "$grow" = "y" ] ; then
 	echo ; echo Grow to how many GB? i.e. 10G
 	echo Consider 8G for sources and use as a Xen Dom0
 	# Would be nice to valildate this input
 	read imgsize
-	truncate -s $imgsize $work_dir/$version/$img ||
+	truncate -s "$imgsize $work_dir/$version/$img" ||
 		{ echo image truncate failed. Invalid size? ; exit 1 ; }
 fi
 
 echo ; echo Attaching $work_dir/$version/$img
-mdconfig -a -u "$md_id" -f $work_dir/$version/$img
+mdconfig -a -u "$md_id" -f "$work_dir/$version/$img"
 mdconfig -lv
 
 if [ "$grow" = "y" ] ; then
 	echo ; echo Recovering $device partitioning
-	gpart recover $md_id || \
+	gpart recover "$md_id" || \
 		{ echo gpart recovery failed ; exit 1 ; }
 
 	echo ; echo Resizing ${device}p4
-	gpart resize -i 4 $md_id || \
+	gpart resize -i 4 "$md_id" || \
 		{ echo gpart resize failed ; exit 1 ; }
 
 	echo ; echo Growing /dev/${device}p4
-	growfs /dev/${md_id}p4 || \
+	growfs "/dev/${md_id}p4" || \
 		{ echo growfs failed ; exit 1 ; }
 fi
 
 echo ; echo Mounting ${md_id}p4 to /media
-mount /dev/${md_id}p4 /media || { echo mount failed ; exit 1 ; }
+mount "/dev/${md_id}p4" /media || { echo mount failed ; exit 1 ; }
 
-gpart show /dev/$md_id
+gpart show "/dev/$md_id"
 df -h |grep media
 
 
@@ -193,7 +208,7 @@ sysrc -f /media/boot/loader.conf autoboot_delay=5
 
 # NETWORKING
 
-echo ; echo Enter \(wifi/fixed\) or nothing for DHPC
+echo ; echo \(wifi/fixed\) or Enter for DHPC
 read net
 
 case $net in
@@ -307,7 +322,7 @@ pkg -r /media install -y $packages
 echo ; echo Install /usr/src? \(y/n\) ; read src
 if [ "$src" = "y" ] ; then
 
-	if [ ! "$grow" = "y" ] ; then
+	if ! [ "$grow" = "y" ] ; then
 		echo ; echo WARNING! It appers that you did not grow the image!
 		echo src installation will likely fail. Continue? \(y/n\)
 		read ungrown
@@ -337,11 +352,19 @@ fi
 
 
 # OPTIONAL XEN DOM0 SUPPORT
+
 # This will perform a second package installation but that is probably
 # preferable to something like a $xen_packages string in the original
 
 echo ; echo Configure system as a Xen Dom0? \(y/n\) ; read xen
 if [ "$xen" = "y" ] ; then
+
+	if ! [ "$grow" = "y" ] ; then
+		echo ; echo WARNING! It appers that you did not grow the image!
+		echo Xen installation will likely fail. Continue? \(y/n\)
+		read ungrown
+		[ "$ungrown" = "y" ] || exit 1
+	fi
 
 	echo ; echo How much Dom0 RAM? i.e. 2048, 4096, 8192, 16384...
 	read dom0_mem
@@ -377,7 +400,8 @@ echo ; cat /media/etc/rc.conf
 echo ; [ -f /media/etc/resolv.conf ] && cat /media/etc/resolv.conf
 
 echo ; echo About to unmount /media.
-echo  Make any final changes now and press Enter when finished ; read lastchance
+echo  Make any final changes now and press Enter when finished ; echo
+read lastchance
 
 echo ; echo Unmounting /media
 umount /media || { echo umount failed ; exit 1 ; }
@@ -388,50 +412,87 @@ mdconfig -du $md_id || { echo $md_id destroy failed ; mdconfig -lv ; exit 1 ; }
 
 # HARDWARE DEVICE HANDLING
 
-# Mention zvols?
-
 echo ; echo dd the configured VM image to a device? \(y/n\) ; read dd 
-[ "$dd" = "y" ] || exit 0
+if [ "$dd" = "y" ] ; then
 
-echo ; echo The availble devices are:
-# Mention zvols?
+	echo ; echo The availble devices are:
+	sysctl kern.disks
 
-sysctl kern.disks
+	echo ; echo What device would you like to dd the VM image to?
+	read device
 
-echo ; echo What device would you like to dd the VM image to?
-read device
+	echo ; echo diskinfo -v for $device reads
+	diskinfo -v "$device"
 
-echo ; echo diskinfo -v for $device reads
-diskinfo -v $device
-
-echo ; echo WARNING! About to write $img to $device! ; echo
-echo ; echo Continue? \(y/n\) ; read warning
+	echo ; echo WARNING! About to write $img to $device! ; echo
+	echo ; echo Continue? \(y/n\) ; echo ; read warning
 # Consider progress feedback
-[ "$warning" = "y" ] || exit 0
+#	[ "$warning" = "y" ] || exit 0
+	[ "$warning" = "y" ] || continue
 
-\time -h dd if=$img of=/dev/$device bs=1m conv=sync || \
-	{ echo dd operation failed ; exit 1 ; }
+	\time -h dd if=$img of=/dev/$device bs=1m conv=sync || \
+		{ echo dd operation failed ; exit 1 ; }
 
-echo ; echo Recovering $device partitioning
-gpart recover $device
+	echo ; echo Recovering $device partitioning
+	gpart recover $device
 
-echo ; echo Resize the device to fill the available space? \(y/n\)
-read secondresize
-if [ "$secondresize" = "y" ] ; then
-	echo ; echo Resizing ${device}p4
-	gpart resize -i 4 $device
-	echo ; echo Growing /dev/${device}p4
-	growfs /dev/${device}p4
+	echo ; echo Resize the device to fill the available space? \(y/n\)
+	read secondresize
+	if [ "$secondresize" = "y" ] ; then
+		echo ; echo Resizing ${device}p4
+		gpart resize -i 4 "$device"
+		echo ; echo Growing /dev/${device}p4
+		growfs "/dev/${device}p4"
+	fi
 fi
+
+
+# OPTIONAL VMDK WRAPPER
+
+echo ; echo Create a VMDK wrapper for the image? \(y/n\) ; read vmdk
+if [ "$vmdk" = "y" ] ; then
+
+	# Assuming blocksize of 512
+	size_bytes="$( stat -f %z "$work_dir/$version/$img" )"
+	RW=$(( "$size_bytes" / 512 ))
+	cylinders=$(( "$RW" / 255 / 63 ))
+
+cat > "$work_dir/$version/${img_base}.vmdk" <<EOF
+# Disk DescriptorFile
+version=1
+CID=12345678
+parentCID=ffffffff
+createType="vmfs"
+
+RW $(( "$size_bytes" / 512 )) VMFS ${img_base}-flat.vmdk
+
+ddb.virtualHWVersion = "4"
+ddb.geometry.cylinders = "$cylinders"
+ddb.geometry.heads = "255"
+ddb.geometry.sectors = "63"
+ddb.adapterType = "lsilogic"
+EOF
+	echo ; echo The resulting "${img_base}.vmdk" wrapper reads: ; echo
+	cat "$work_dir/$version/${img_base}.vmdk"
+	echo ; echo Renaming "$img" to "${img_base}-flat.vmdk"
+
+	mv "$img" "${img_base}-flat.vmdk"
+fi
+
 
 # OPTIONAL GZIP COMPRESSION
 
 # gzip because it is more compatible and will not override the upstream image
 
-echo ; echo gzip compress the configured image file? \(y/n\) ; read gzip
+echo ; echo gzip compress the configured image file? \(y/n\)
+echo Remember to uncompress the image before use! ; read gzip
 if [ "$gzip" = "y" ] ; then
-	gzip $img || { echo gzip failed ; exit 1 ; }
+	if [ "$vmdk" = "y" ] ; then
+		gzip "${img_base}-flat.vmdk" || { echo gzip failed ; exit 1 ; }
 # Consider progress feedback
+	else
+		gzip "$img" || { echo gzip failed ; exit 1 ; }
+	fi
 fi
 
 echo ; echo Have a nice day!
