@@ -26,7 +26,7 @@
 # IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-# Version v0.4
+# Version v0.5
 # VARIABLES - NOTE THE VERSIONED ONES
 
 password="freebsd"
@@ -123,7 +123,7 @@ fi
 
 		cd "$work_dir/$version"
 		echo ; echo Uncompressing "$xzimg"
-		unxz --verbose --keep "$xzimg"
+		\time -h unxz --verbose --keep "$xzimg"
 #	fi
 #fi
 
@@ -224,7 +224,7 @@ case $net in
 		sysrc -R /media create_args_wlan0="country US regdomain FCC"
 
 		echo ; echo Generating wpa_supplicant.conf
-		cat > /media/etc/wpa_supplicant.conf <<EOF
+		cat << EOF > /media/etc/wpa_supplicant.conf
 ctrl_interface=/var/run/wpa_supplicant
 eapol_version=2
 ap_scan=1
@@ -266,6 +266,7 @@ echo "$password" | pw -R /media/ usermod -n root -h 0
 # SERIAL OUTPUT
 
 echo ; echo Enable serial port? \(y/n\) ; read serial
+echo Suggested for Xen DomU VM use
 if [ "$serial" = "y" ] ; then
 	echo Configurating /boot.config and /boot/loader.conf for serial output
 
@@ -351,13 +352,46 @@ if [ "$src" = "y" ] ; then
 fi
 
 
+# OPTIONAL XEN DOMU SUPPORT
+
+echo ; echo Generate Xen DomU VM guest configuration and boot files? \(y/n\)
+read domu
+if [ "$domu" = "y" ] ; then
+
+echo ; echo Generating xen.cfg
+cat << HERE > $work_dir/$version/xen.cfg
+type = "hvm"
+memory = 2048
+vcpus = 2
+name = "$version"
+disk = [ '$work_dir/$version/$img,raw,hda,w' ]
+boot = "c"
+serial = 'pty'
+on_poweroff = 'destroy'
+on_reboot = 'restart'
+on_crash = 'restart'
+#vif = [ 'bridge=bridge0' ]
+HERE
+
+	echo "xl list | grep $version && xl destroy $version " \
+		> $work_dir/$version/boot-xen.sh
+	echo "xl create -c $work_dir/$version/xen.cfg" \
+		>> $work_dir/$version/boot-xen.sh
+	echo You can boot the VM with $work_dir/$version/boot-xen.sh
+
+	echo "xl shutdown $version ; xl destroy $version ; xl list" > \
+		$work_dir/$version/destroy-xen.sh
+	echo Also note $work_dir/$version/destroy-xen.sh
+fi
+
+
 # OPTIONAL XEN DOM0 SUPPORT
 
 # This will perform a second package installation but that is probably
 # preferable to something like a $xen_packages string in the original
 
-echo ; echo Configure system as a Xen Dom0? \(y/n\) ; read xen
-if [ "$xen" = "y" ] ; then
+echo ; echo Configure system as a Xen Dom0? \(y/n\) ; read dom0
+if [ "$dom0" = "y" ] ; then
 
 	if ! [ "$grow" = "y" ] ; then
 		echo ; echo WARNING! It appers that you did not grow the image!
@@ -457,7 +491,7 @@ if [ "$vmdk" = "y" ] ; then
 	RW=$(( "$size_bytes" / 512 ))
 	cylinders=$(( "$RW" / 255 / 63 ))
 
-cat > "$work_dir/$version/${img_base}.vmdk" <<EOF
+cat << EOF > "$work_dir/$version/${img_base}.vmdk"
 # Disk DescriptorFile
 version=1
 CID=12345678
@@ -488,10 +522,11 @@ echo ; echo gzip compress the configured image file? \(y/n\)
 echo Remember to uncompress the image before use! ; read gzip
 if [ "$gzip" = "y" ] ; then
 	if [ "$vmdk" = "y" ] ; then
-		gzip "${img_base}-flat.vmdk" || { echo gzip failed ; exit 1 ; }
+		\time -h gzip "${img_base}-flat.vmdk" || \
+			{ echo gzip failed ; exit 1 ; }
 # Consider progress feedback
 	else
-		gzip "$img" || { echo gzip failed ; exit 1 ; }
+		\time -h gzip "$img" || { echo gzip failed ; exit 1 ; }
 	fi
 fi
 

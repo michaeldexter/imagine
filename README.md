@@ -43,6 +43,7 @@ Installing /usr/src and Xen Dom0 configuration are currently only performed afte
 * Resize and grow the image root file system
 * Enable serial output
 * Install /usr/src to a rezied and grown file system
+* Enable image to be a Xen DomU VM guest configuration file and boot script
 * Enable image to be a Xen Dom0 host using xenomorph
 * dd(1) the VM image to a hardware device
 * Generate a VMDK wrapper
