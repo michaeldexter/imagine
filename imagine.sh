@@ -26,7 +26,7 @@
 # IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-# Version v0.3
+# Version v0.4
 # VARIABLES - NOTE THE VERSIONED ONES
 
 password="freebsd"
@@ -35,7 +35,7 @@ wifi_pass="my_wifi_password"
 subnet="10.0.0"
 work_dir="/root/imagine-work"
 bits_dir="/lab/imagine-bits"
-packages="tmux rsync smartmontools smart fio git-lite iperf3 xen-guest-tools"
+packages="tmux rsync smartmontools smart fio git-lite iperf3 xen-guest-tools open-vm-tools-nox11"
 md_id="md43"
 
 release_img_url="https://download.freebsd.org/ftp/releases/VM-IMAGES/13.0-RELEASE/amd64/Latest/FreeBSD-13.0-RELEASE-amd64.raw.xz"
