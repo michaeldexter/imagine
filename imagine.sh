@@ -164,7 +164,7 @@ if [ "$grow" = "y" ] ; then
 		{ echo gpart resize failed ; exit 1 ; }
 
 	echo ; echo Growing /dev/${device}p4
-	growfs "/dev/${md_id}p4" || \
+	growfs -y "/dev/${md_id}p4" || \
 		{ echo growfs failed ; exit 1 ; }
 fi
 
