@@ -35,11 +35,12 @@ Installing /usr/src and Xen Dom0 configuration are currently only performed afte
 * verbose_loading is enabled
 * boot_verbose is enabled
 * autoboot_delay is set to five seconds
-* Change networking from "DHCP on all interfaces" to fixed or WiFi
+* Touch /firstboot
 
 ## Optional Modifications
 
 * Resize and grow the image root file system
+* Change networking from "DHCP on all interfaces" to fixed or WiFi
 * Enable serial output
 * Install packages, even if configuring a current image on a release host
 * Install distribution sets for use with bsdinstall

@@ -26,7 +26,7 @@
 # IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-# Version v0.6
+# Version v0.7
 # VARIABLES - NOTE THE VERSIONED ONES
 
 password="freebsd"
@@ -207,6 +207,9 @@ sysrc -f /media/boot/loader.conf boot_verbose="YES"
 echo ; echo Shortening autoboot_delay
 sysrc -f /media/boot/loader.conf autoboot_delay=5
 
+echo ; echo Touching /firstboot
+touch /media/firstboot
+
 
 # NETWORKING
 
@@ -248,7 +251,7 @@ EOF
 		sysrc -R /media defaultrouter="$subnet.1"
 
 		echo ; echo Setting fixed IP to $subnet.$ip
-		sysrc -R /media ifconfig_DEFAULT="$subnet.$ip/24"
+		sysrc -R /media ifconfig_DEFAULT="inet $subnet.$ip/24"
 
 		echo ; echo Setting the nameserver
 		# sysrc does not support this
