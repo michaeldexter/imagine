@@ -26,7 +26,7 @@
 # IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-# Version v0.5
+# Version v0.6
 # VARIABLES - NOTE THE VERSIONED ONES
 
 password="freebsd"
@@ -35,16 +35,16 @@ wifi_pass="my_wifi_password"
 subnet="10.0.0"
 work_dir="/root/imagine-work"
 bits_dir="/lab/imagine-bits"
-packages="tmux rsync smartmontools smart fio git-lite iperf3 xen-guest-tools open-vm-tools-nox11"
+package_list="tmux rsync smartmontools smart fio git-lite iperf3 xen-guest-tools open-vm-tools-nox11"
 md_id="md43"
 
 release_img_url="https://download.freebsd.org/ftp/releases/VM-IMAGES/13.0-RELEASE/amd64/Latest/FreeBSD-13.0-RELEASE-amd64.raw.xz"
 
-release_src_url="https://download.freebsd.org/ftp/releases/amd64/13.0-RELEASE/src.txz"
+release_dist_url="https://download.freebsd.org/ftp/releases/amd64/13.0-RELEASE"
 
 current_img_url="https://download.freebsd.org/ftp/snapshots/VM-IMAGES/14.0-CURRENT/amd64/Latest/FreeBSD-14.0-CURRENT-amd64.raw.xz"
 
-current_src_url="https://download.freebsd.org/ftp/snapshots/amd64/amd64/14.0-CURRENT/src.txz"
+current_dist_url="https://download.freebsd.org/ftp/snapshots/amd64/amd64/14.0-CURRENT"
 
 [ -f ./lib_xenomorph.sh ] || \
 	{ echo lib_xenomorph.sh missing ; exit 1 ; }
@@ -58,12 +58,12 @@ read version
 
 if [ "$version" = "release" ] ; then
 	img_url="$release_img_url"
-	src_url="$release_src_url"
+	dist_url="$release_dist_url"
 
 elif [ "$version" = "current" ] ; then
 
 	img_url="$current_img_url"
-	src_url="$current_src_url"
+	dist_url="$current_dist_url"
 else
 	echo Invalid input
 	exit 1
@@ -88,8 +88,8 @@ mdconfig -du "$md_id" > /dev/null 2>&1
 mdconfig -du "$md_id" > /dev/null 2>&1
 
 if [ -f "$work_dir/$version/$xzimg" ] ; then
-	echo $xzimg exists. Download fresh? \(y/n\) ; read fresh
-	if [ "$fresh" = "y" ] ; then
+	echo $xzimg exists. Fetch fresh? \(y/n\) ; read freshimg
+	if [ "$freshimg" = "y" ] ; then
 		rm "$work_dir/$version/$xzimg"
 		echo ; echo Feching $img from $img_url
 		# NOT WORKING
@@ -120,6 +120,8 @@ fi
 			rm "$work_dir/$version/${img}.gz"
 		[ -f "$work_dir/$version/${img_base}-flat.vmdk" ] && \
 			rm "$work_dir/$version/${img_base}-flat.vmdk"
+		[ -f "$work_dir/$version/${img_base}-flat.vmdk.gz" ] && \
+			rm "$work_dir/$version/${img_base}-flat.vmdk.gz"
 
 		cd "$work_dir/$version"
 		echo ; echo Uncompressing "$xzimg"
@@ -312,10 +314,67 @@ echo ; echo Copying in labnfs.sh if present
 
 # PACKAGES
 
-echo ; echo Installing Packages
-# Yes, pkg checks for different OS versions!
-# But, the arguments must be in this precise order to work
-pkg -r /media install -y $packages
+echo  echo Install packages? \(y/n\) ; read packages
+if [ "$packages" = "y" ] ; then
+	echo ; echo Installing Packages
+	# Yes, pkg checks for different OS versions!
+	# But, the arguments must be in this precise order to work
+	pkg -r /media install -y $package_list
+fi
+
+# OPTIONAL DISTRIBUTION SETS
+
+echo ; echo Install distribution sets to /usr/freebsd-dist ? \(y/n\) ; read dist
+if [ "$dist" = "y" ] ; then
+
+	if ! [ "$grow" = "y" ] ; then
+		echo ; echo WARNING! It appers that you did not grow the image!
+		echo dist set installation will likely fail. Continue? \(y/n\)
+		read ungrown
+		[ "$ungrown" = "y" ] || exit 1
+	fi
+
+	if [ -f $work_dir/$version/freebsd-dist/base.txz ] ; then
+		echo base.txz found. Fetch all fresh? \(y/n\)
+		read freshdist
+		srcisfresh=0
+		if [ "$freshdist" = "y" ] ; then
+			cd $work_dir/$version/freebsd-dist/
+			rm *.txz
+			echo Fetching distributions sets
+			fetch $dist_url/MANIFEST
+			fetch $dist_url/base-dbg.txz
+			fetch $dist_url/base.txz
+			fetch $dist_url/kernel-dbg.txz
+			fetch $dist_url/kernel.txz
+			fetch $dist_url/lib32-dbg.txz
+			fetch $dist_url/lib32.txz
+			fetch $dist_url/ports.txz
+			fetch $dist_url/src.txz
+			fetch $dist_url/tests.txz
+			srcisfresh=1
+		fi
+	else
+		[ -d $work_dir/$version/freebsd-dist/ ] || \
+			mkdir -p [ -f $work_dir/$version/freebsd-dist
+		cd $work_dir/$version/freebsd-dist/
+		echo Fetching distributions sets
+		fetch $dist_url/MANIFEST
+		fetch $dist_url/base-dbg.txz
+		fetch $dist_url/base.txz
+		fetch $dist_url/kernel-dbg.txz
+		fetch $dist_url/kernel.txz
+		fetch $dist_url/lib32-dgb.txz
+		fetch $dist_url/lib32.txz
+		fetch $dist_url/ports.txz
+		fetch $dist_url/src.txz
+		fetch $dist_url/tests.txz
+		srcisfresh=1
+	fi
+
+	echo Copying distributions sets
+	cp -rp $work_dir/$version/freebsd-dist /media/usr/
+fi
 
 
 # OPTIONAL SOURCES
@@ -330,21 +389,24 @@ if [ "$src" = "y" ] ; then
 		[ "$ungrown" = "y" ] || exit 1
 	fi
 
-	if [ -f $work_dir/$version/src.txz ] ; then
-		echo $work_dir/$version/src.txz exists. Fetch fresh? \(y/n\)
-		read freshsrc
-		if [ "$freshsrc" = "y" ] ; then
-			cd $work_dir/$version/
-			rm src.txz
-			echo Fetching $src_url
-			fetch $src_url
+	if [ -f "$work_dir/$version/freebsd-dist/src.txz" ] ; then
+		if ! [ "$srcisfresh" = 1 ] ; then
+			echo src.txz exists. Fetch fresh? \(y/n\)
+			read freshsrc
+			if [ "$freshsrc" = "y" ] ; then
+				cd $work_dir/$version/freebsd-dist/
+				rm src.txz
+				echo Fetching $dist_url/src.txz
+				fetch $dist_url/src.txz
+			fi
 		fi
 	else
-		cd $work_dir/$version/
-		echo Fetching $src_url
-		fetch $src_url
+		cd $work_dir/$version/freebsd-dist
+		echo Fetching $dist_url/src.txz
+		fetch $dist_url/src.txz
 	fi
 
+	cd $work_dir/$version/freebsd-dist/
 	echo ; echo Extracting src.txz to /media
 	cat src.txz | tar -xf - -C /media/
 
@@ -460,23 +522,23 @@ if [ "$dd" = "y" ] ; then
 
 	echo ; echo WARNING! About to write $img to $device! ; echo
 	echo ; echo Continue? \(y/n\) ; echo ; read warning
-# Consider progress feedback
-#	[ "$warning" = "y" ] || exit 0
-	[ "$warning" = "y" ] || continue
+	if [ "$warning" = "y" ] ; then
 
-	\time -h dd if=$img of=/dev/$device bs=1m conv=sync || \
-		{ echo dd operation failed ; exit 1 ; }
+		# Consider progress feedback
+		\time -h dd if=$img of=/dev/$device bs=1m conv=sync || \
+			{ echo dd operation failed ; exit 1 ; }
 
-	echo ; echo Recovering $device partitioning
-	gpart recover $device
+		echo ; echo Recovering $device partitioning
+		gpart recover $device
 
-	echo ; echo Resize the device to fill the available space? \(y/n\)
-	read secondresize
-	if [ "$secondresize" = "y" ] ; then
-		echo ; echo Resizing ${device}p4
-		gpart resize -i 4 "$device"
-		echo ; echo Growing /dev/${device}p4
-		growfs "/dev/${device}p4"
+		echo ; echo Resize device to fill the available space? \(y/n\)
+		read secondresize
+		if [ "$secondresize" = "y" ] ; then
+			echo ; echo Resizing ${device}p4
+			gpart resize -i 4 "$device"
+			echo ; echo Growing /dev/${device}p4
+			growfs "/dev/${device}p4"
+		fi
 	fi
 fi
 
