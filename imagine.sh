@@ -317,7 +317,7 @@ echo ; echo Copying in labnfs.sh if present
 
 # PACKAGES
 
-echo  echo Install packages? \(y/n\) ; read packages
+echo ; echo Install packages? \(y/n\) ; read packages
 if [ "$packages" = "y" ] ; then
 	echo ; echo Installing Packages
 	# Yes, pkg checks for different OS versions!
