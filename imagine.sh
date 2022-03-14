@@ -419,7 +419,8 @@ fi
 
 # OPTIONAL XEN DOMU SUPPORT
 
-echo ; echo Generate Xen DomU VM guest configuration and boot files? \(y/n\)
+echo
+echo Generate Xen DomU VM guest configuration file and boot script? \(y/n\)
 read domu
 if [ "$domu" = "y" ] ; then
 
@@ -523,12 +524,12 @@ if [ "$dd" = "y" ] ; then
 	echo ; echo diskinfo -v for $device reads
 	diskinfo -v "$device"
 
-	echo ; echo WARNING! About to write $img to $device! ; echo
+	echo ; echo WARNING! About to write $work_dir/$version/$img to $device!
 	echo ; echo Continue? \(y/n\) ; echo ; read warning
 	if [ "$warning" = "y" ] ; then
 
 		# Consider progress feedback
-		\time -h dd if=$img of=/dev/$device bs=1m conv=sync || \
+\time -h dd if=$work_dir/$version/$img of=/dev/$device bs=1m conv=sync || \
 			{ echo dd operation failed ; exit 1 ; }
 
 		echo ; echo Recovering $device partitioning
@@ -540,7 +541,7 @@ if [ "$dd" = "y" ] ; then
 			echo ; echo Resizing ${device}p4
 			gpart resize -i 4 "$device"
 			echo ; echo Growing /dev/${device}p4
-			growfs "/dev/${device}p4"
+			growfs -y "/dev/${device}p4"
 		fi
 	fi
 fi
