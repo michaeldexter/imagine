@@ -249,7 +249,7 @@ EOF
 	;;
 	fixed)
 		# Phrase this better
-		echo ; echo What last digits of the IP? i.e. 20 ?
+		echo ; echo What last digits of the IP? i.e. 20 for ${subnet}.20?
 		echo -n "(IP address ending): " ; read ip
 
 		echo ; echo What interface? i.e. em0, igb0 ?
@@ -278,6 +278,9 @@ echo ; echo Setting root password with pw
 #pw -R /media/
 echo "$password" | pw -R /media/ usermod -n root -h 0
 
+echo ; echo Will the target system boot UEFI?
+echo -n "(y/n): " ; read uefi
+
 
 # SERIAL OUTPUT
 
@@ -300,8 +303,6 @@ if [ "$serial" = "y" ] ; then
 	sysrc -f /media/boot/loader.conf boot_serial="YES"
 	sysrc -f /media/boot/loader.conf comconsole_speed="115200"
 
-	echo ; echo Will the target system boot UEFI?
-	echo -n "(y/n): " ; read uefi
 	if [ "$uefi" = "y" ] ; then
 		sysrc -f /media/boot/loader.conf console="comconsole,efi"
 	else
@@ -504,6 +505,23 @@ if [ "$dom0" = "y" ] ; then
 fi
 
 
+
+echo DEBUG!!! xenomorph ran xenomorph -r /media -m $dom0_mem -c $dom0_cpus $uefi_flag $serial_flag
+
+echo and resulted in:
+cat /media/boot/loader.conf
+echo look okay?
+
+read omg
+
+
+
+
+
+
+
+
+
 # FINAL REVIEW
 
 echo ; echo Reviewing boot.config loader.conf rc.conf resolv.conf
@@ -552,8 +570,8 @@ if [ "$dd" = "y" ] ; then
 	echo -n "(y/n): " ; read warning
 	if [ "$warning" = "y" ] ; then
 
-		# Consider progress feedback
-\time -h dd if=$work_dir/$version/$img of=/dev/$device bs=1m conv=sync || \
+	\time -h dd if=$work_dir/$version/$img of=/dev/$device \
+		bs=1m conv=sync status=progress || \
 			{ echo dd operation failed ; exit 1 ; }
 
 		echo ; echo Recovering $device partitioning
