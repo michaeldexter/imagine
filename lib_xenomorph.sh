@@ -98,7 +98,7 @@ xenomorph() {
 		{ echo $dom0_root/etc/ttys configuration failed ; return 1 ; }
 
 	sysrc -f $dom0_root/boot/loader.conf xen_kernel="/boot/xen"
-	sysrc -f $dom0_root/boot/loader.conf xen_cmdline="dom0=pvh dom0_mem=${dom0_mem}M dom0_max_vcpus=4 $console_string guest_loglvl=all loglvl=all"
+	sysrc -f $dom0_root/boot/loader.conf xen_cmdline="dom0=pvh dom0_mem=${dom0_mem} dom0_max_vcpus=4 $console_string guest_loglvl=all loglvl=all"
 
 # Decide if this is one to remove upon request as it is not Xen-specific
 	sysrc -f $dom0_root/boot/loader.conf if_tap_load="YES"
