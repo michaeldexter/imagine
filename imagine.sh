@@ -26,7 +26,7 @@
 # IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-# Version v0.7
+# Version v0.8
 # VARIABLES - NOTE THE VERSIONED ONES
 
 password="freebsd"
@@ -53,8 +53,8 @@ current_dist_url="https://download.freebsd.org/ftp/snapshots/amd64/amd64/14.0-CU
 
 [ -d "$work_dir" ] || mkdir -p "$work_dir"
 
-echo ; echo What version would you like to configure? \(release\)/\(current\)
-read version
+echo ; echo What version of FreeBSD would you like to configure?
+echo -n "(release/current): " ; read version
 
 if [ "$version" = "release" ] ; then
 	img_url="$release_img_url"
@@ -77,18 +77,9 @@ xzimg="$( basename "$img_url" )"
 img="${xzimg%.xz}"
 img_base="${img%.raw}"
 
-echo Unmouting /media
-# THIS TEST IS NOT RELIABLE - make a better one
-#mount | grep "/media" && umount -f /media || \
-#	{ echo /media failed to unmount ; exit 1 ; }
-
-# FOR WANT OF A RELIABLE TEST
-umount -f /media > /dev/null 2>&1
-mdconfig -du "$md_id" > /dev/null 2>&1
-mdconfig -du "$md_id" > /dev/null 2>&1
-
 if [ -f "$work_dir/$version/$xzimg" ] ; then
-	echo $xzimg exists. Fetch fresh? \(y/n\) ; read freshimg
+	echo ; echo $xzimg exists. Fetch fresh?
+echo -n "(y/n): " ; read freshimg
 	if [ "$freshimg" = "y" ] ; then
 		rm "$work_dir/$version/$xzimg"
 		echo ; echo Feching $img from $img_url
@@ -109,9 +100,9 @@ fi
 
 # Useful while testing, strongly discouraged for use
 #if [ -f "$work_dir/$version/$img" ] ; then
-#	echo ; echo $img exists. Reuse uncompressed image? \(y/n\)
+#	echo ; echo $img exists. Reuse uncompressed image?
 #	echo This is strongly discouraged if partially configured!
-#	read reuse
+#echo -n "(y/n): " ; read reuse
 #	if ! [ "$reuse" = "y" ] ; then
 
 		echo Removing previous VM image if present
@@ -136,17 +127,29 @@ file -s "$work_dir/$version/$img" | grep "boot sector" || \
 	{ echo $work_dir/$version/$img not a disk image? ; exit 1 ; }
 
 
+# PRIMITIVE CLEAN UP
+
+echo Unmouting /media
+# THIS TEST IS NOT RELIABLE - make a better one
+#mount | grep "/media" && umount -f /media || \
+#	{ echo /media failed to unmount ; exit 1 ; }
+
+# FOR WANT OF A RELIABLE TEST
+umount -f /media > /dev/null 2>&1
+mdconfig -du "$md_id" > /dev/null 2>&1
+mdconfig -du "$md_id" > /dev/null 2>&1
+
+
 # OPTIONAL RESIZE
 
-echo ; echo Grow the image from from the default of 5GB? \(y/n\)
-echo Consider 8G for sources and use as a Xen Dom0
-read grow
+echo ; echo Grow the image from from the default of 5GB?
+echo -n "(y/n): " ; read grow
 if [ "$grow" = "y" ] ; then
 	echo ; echo Grow to how many GB? i.e. 10G
 	echo Consider 8G for sources and use as a Xen Dom0
 	# Would be nice to valildate this input
-	read imgsize
-	truncate -s "$imgsize" "$work_dir/$version/$img" ||
+	echo -n "New image size: " ; read newsize
+	truncate -s "$newsize" "$work_dir/$version/$img" ||
 		{ echo image truncate failed. Invalid size? ; exit 1 ; }
 fi
 
@@ -155,15 +158,15 @@ mdconfig -a -u "$md_id" -f "$work_dir/$version/$img"
 mdconfig -lv
 
 if [ "$grow" = "y" ] ; then
-	echo ; echo Recovering $device partitioning
+	echo ; echo Recovering $md_id partitioning
 	gpart recover "$md_id" || \
 		{ echo gpart recovery failed ; exit 1 ; }
 
-	echo ; echo Resizing ${device}p4
+	echo ; echo Resizing ${md_id}p4
 	gpart resize -i 4 "$md_id" || \
 		{ echo gpart resize failed ; exit 1 ; }
 
-	echo ; echo Growing /dev/${device}p4
+	echo ; echo Growing /dev/${md_id}p4
 	growfs -y "/dev/${md_id}p4" || \
 		{ echo growfs failed ; exit 1 ; }
 fi
@@ -213,14 +216,15 @@ touch /media/firstboot
 
 # NETWORKING
 
-echo ; echo \(wifi/fixed\) or Enter for DHPC
-read net
+echo ; echo Networking type:
+echo -n "(dhcp/wifi/fixed): " ; read net
 
 case $net in
-#	# Default behavior of the VM images and thus nothing to do
-#	dhcp)
-#		sysrc -R /media ifconfig_DEFAULT="DHCP"
-#	;;
+	# Default behavior of the VM images and thus nothing to do
+	dhcp)
+		# This is the fault
+		true
+	;;
 	wifi)
 		echo Removing ifconfig_DEFAULT
 		sysrc -x -R /media ifconfig_DEFAULT
@@ -244,14 +248,21 @@ network={
 EOF
 	;;
 	fixed)
-		echo ; echo What last digits of the IP i.e. 20 ?
-		read ip
+		# Phrase this better
+		echo ; echo What last digits of the IP? i.e. 20 ?
+		echo -n "(IP address ending): " ; read ip
+
+		echo ; echo What interface? i.e. em0, igb0 ?
+		echo -n "(Network inteface): " ; read nic
 
 		echo ; echo Setting default router
 		sysrc -R /media defaultrouter="$subnet.1"
 
+		echo ; echo Removing ifconfig_DEFAULT
+		sysrc -x -R /media ifconfig_DEFAULT
+
 		echo ; echo Setting fixed IP to $subnet.$ip
-		sysrc -R /media ifconfig_DEFAULT="inet $subnet.$ip/24"
+		sysrc -R /media ifconfig_${nic}="inet $subnet.${ip}/24"
 
 		echo ; echo Setting the nameserver
 		# sysrc does not support this
@@ -270,8 +281,8 @@ echo "$password" | pw -R /media/ usermod -n root -h 0
 
 # SERIAL OUTPUT
 
-echo ; echo Enable serial port? \(y/n\) ; read serial
-echo Suggested for Xen DomU VM use
+echo ; echo Enable serial port?
+echo -n "(y/n): " ; read serial
 if [ "$serial" = "y" ] ; then
 	echo Configurating /boot.config and /boot/loader.conf for serial output
 
@@ -289,7 +300,8 @@ if [ "$serial" = "y" ] ; then
 	sysrc -f /media/boot/loader.conf boot_serial="YES"
 	sysrc -f /media/boot/loader.conf comconsole_speed="115200"
 
-	echo ; echo Will the target system boot UEFI? \(y/n\) ; read uefi
+	echo ; echo Will the target system boot UEFI?
+	echo -n "(y/n): " ; read uefi
 	if [ "$uefi" = "y" ] ; then
 		sysrc -f /media/boot/loader.conf console="comconsole,efi"
 	else
@@ -317,7 +329,8 @@ echo ; echo Copying in labnfs.sh if present
 
 # PACKAGES
 
-echo ; echo Install packages? \(y/n\) ; read packages
+echo ; echo Install packages?
+echo -n "(y/n): " ; read packages
 if [ "$packages" = "y" ] ; then
 	echo ; echo Installing Packages
 	# Yes, pkg checks for different OS versions!
@@ -327,19 +340,20 @@ fi
 
 # OPTIONAL DISTRIBUTION SETS
 
-echo ; echo Install distribution sets to /usr/freebsd-dist ? \(y/n\) ; read dist
+echo ; echo Install distribution sets to /usr/freebsd-dist ?
+echo -n "(y/n): " ; read dist
 if [ "$dist" = "y" ] ; then
 
 	if ! [ "$grow" = "y" ] ; then
 		echo ; echo WARNING! It appers that you did not grow the image!
-		echo dist set installation will likely fail. Continue? \(y/n\)
-		read ungrown
+		echo dist set installation will likely fail. Continue?
+		echo -n "(y/n): " ; read ungrown
 		[ "$ungrown" = "y" ] || exit 1
 	fi
 
 	if [ -f $work_dir/$version/freebsd-dist/base.txz ] ; then
-		echo base.txz found. Fetch all fresh? \(y/n\)
-		read freshdist
+		echo base.txz found. Fetch all fresh?
+		echo -n "(y/n): " ; read freshdist
 		srcisfresh=0
 		if [ "$freshdist" = "y" ] ; then
 			cd $work_dir/$version/freebsd-dist/
@@ -382,20 +396,21 @@ fi
 
 # OPTIONAL SOURCES
 
-echo ; echo Install /usr/src? \(y/n\) ; read src
+echo ; echo Install /usr/src?
+echo -n "(y/n): " ; read src
 if [ "$src" = "y" ] ; then
 
 	if ! [ "$grow" = "y" ] ; then
 		echo ; echo WARNING! It appers that you did not grow the image!
-		echo src installation will likely fail. Continue? \(y/n\)
-		read ungrown
+		echo src installation will likely fail. Continue?
+		echo -n "(y/n): " ; read ungrown
 		[ "$ungrown" = "y" ] || exit 1
 	fi
 
 	if [ -f "$work_dir/$version/freebsd-dist/src.txz" ] ; then
 		if ! [ "$srcisfresh" = 1 ] ; then
-			echo src.txz exists. Fetch fresh? \(y/n\)
-			read freshsrc
+			echo src.txz exists. Fetch fresh?
+			echo -n "(y/n): " ; read freshsrc
 			if [ "$freshsrc" = "y" ] ; then
 				cd $work_dir/$version/freebsd-dist/
 				rm src.txz
@@ -420,8 +435,8 @@ fi
 # OPTIONAL XEN DOMU SUPPORT
 
 echo
-echo Generate Xen DomU VM guest configuration file and boot script? \(y/n\)
-read domu
+echo Generate Xen DomU VM guest configuration file and boot script?
+echo -n "(y/n): " ; read domu
 if [ "$domu" = "y" ] ; then
 
 echo ; echo Generating xen.cfg
@@ -456,35 +471,36 @@ fi
 # This will perform a second package installation but that is probably
 # preferable to something like a $xen_packages string in the original
 
-echo ; echo Configure system as a Xen Dom0? \(y/n\) ; read dom0
+echo ; echo Configure system as a Xen Dom0?
+echo -n "(y/n): " ; read dom0
 if [ "$dom0" = "y" ] ; then
 
 	if ! [ "$grow" = "y" ] ; then
 		echo ; echo WARNING! It appers that you did not grow the image!
-		echo Xen installation will likely fail. Continue? \(y/n\)
-		read ungrown
+		echo Xen installation will likely fail. Continue?
+		echo -n "(y/n): " ; read ungrown
 		[ "$ungrown" = "y" ] || exit 1
 	fi
 
-	echo ; echo How much Dom0 RAM? i.e. 2048, 4096, 8192, 16384...
-	read dom0_mem
+	echo ; echo How much Dom0 RAM? i.e. 4096, 8g, 16g
+	echo -n "(Dom0 RAM): " ; read dom0_mem
 
-	echo ; echo How many Dom0 CPUs? i.e. 2, 4, 8, 16...
-	read dom0_cpus
+	echo ; echo How many Dom0 CPUs? i.e. 2, 4, 8
+	echo -n "(Dom0 CPUs): " ; read dom0_cpus
 
-# Sounds wrong
-#	if [ "$uefi" = "y" ] ; then
-#		uefi_string="-e"
-#	fi
-
-	if [ "$serial" = "y" ] ; then
-		#serial_string="-s"
-		serial_string="console=vga,com1 com1=115200,8n1"
+# Parameter for lib_xenomorph
+	if [ "$uefi" = "y" ] ; then
+		uefi_flag="-e"
 	fi
 
-#	xenomorph -r /media -m $dom0_mem -c $dom0_cpus $uefi_string $serial_string || \
-	xenomorph -r /media -m $dom0_mem -c $dom0_cpus $serial_string || \
-		{ echo xenomorph failed ; exit 1 ; }
+# Parameter for lib_xenomorph
+	if [ "$serial" = "y" ] ; then
+		serial_flag="-s"
+	fi
+
+	xenomorph -r /media -m $dom0_mem -c $dom0_cpus \
+		$uefi_flag $serial_flag || \
+			{ echo xenomorph failed ; exit 1 ; }
 fi
 
 
@@ -499,33 +515,41 @@ echo ; [ -f /media/etc/sysctl.conf ] && cat /media/etc/sysctl.conf
 echo ; cat /media/etc/rc.conf
 echo ; [ -f /media/etc/resolv.conf ] && cat /media/etc/resolv.conf
 
-echo ; echo About to unmount /media.
-echo  Make any final changes now and press Enter when finished ; echo
-read lastchance
+echo ; echo About to unmount /media
+echo  Last chance to make final changes to the mounted image at /media
+echo ; echo Unmount /media ?
+echo -n "(y/n): " ; read umount
+if [ "$umount" = "y" ] ; then
+	echo ; echo Unmounting /media
+	umount /media || { echo umount failed ; exit 1 ; }
 
-echo ; echo Unmounting /media
-umount /media || { echo umount failed ; exit 1 ; }
-
-echo ; echo Destroying $md_id
-mdconfig -du $md_id || { echo $md_id destroy failed ; mdconfig -lv ; exit 1 ; }
+	echo ; echo Destroying $md_id
+	mdconfig -du $md_id || \
+		{ echo $md_id destroy failed ; mdconfig -lv ; exit 1 ; }
+else
+	You can manually run \'umount /media\' and \'mdconfig -du $md_id\'
+	echo ; echo Exiting ; exit 0
+fi
 
 
 # HARDWARE DEVICE HANDLING
 
-echo ; echo dd the configured VM image to a device? \(y/n\) ; read dd 
+echo ; echo dd the configured VM image to a device?
+echo -n "(y/n): " ; read dd
 if [ "$dd" = "y" ] ; then
 
 	echo ; echo The availble devices are:
 	sysctl kern.disks
 
 	echo ; echo What device would you like to dd the VM image to?
-	read device
+	echo -n "(Device): " ; read device
 
 	echo ; echo diskinfo -v for $device reads
 	diskinfo -v "$device"
 
 	echo ; echo WARNING! About to write $work_dir/$version/$img to $device!
-	echo ; echo Continue? \(y/n\) ; echo ; read warning
+	echo ; echo Continue?
+	echo -n "(y/n): " ; read warning
 	if [ "$warning" = "y" ] ; then
 
 		# Consider progress feedback
@@ -535,9 +559,9 @@ if [ "$dd" = "y" ] ; then
 		echo ; echo Recovering $device partitioning
 		gpart recover $device
 
-		echo ; echo Resize device to fill the available space? \(y/n\)
-		read secondresize
-		if [ "$secondresize" = "y" ] ; then
+		echo ; echo Resize device to fill the available space?
+		echo -n "(y/n): " ; read hardware_resize
+		if [ "$hardware_resize" = "y" ] ; then
 			echo ; echo Resizing ${device}p4
 			gpart resize -i 4 "$device"
 			echo ; echo Growing /dev/${device}p4
@@ -549,7 +573,8 @@ fi
 
 # OPTIONAL VMDK WRAPPER
 
-echo ; echo Create a VMDK wrapper for the image? \(y/n\) ; read vmdk
+echo ; echo Create a VMDK wrapper for the image?
+echo -n "(y/n): " ; read vmdk
 if [ "$vmdk" = "y" ] ; then
 
 	# Assuming blocksize of 512
@@ -584,8 +609,9 @@ fi
 
 # gzip because it is more compatible and will not override the upstream image
 
-echo ; echo gzip compress the configured image file? \(y/n\)
-echo Remember to uncompress the image before use! ; read gzip
+echo ; echo gzip compress the configured image file?
+echo Remember to uncompress the image before use!
+echo -n "(y/n): " ; read gzip
 if [ "$gzip" = "y" ] ; then
 	if [ "$vmdk" = "y" ] ; then
 		\time -h gzip "${img_base}-flat.vmdk" || \

@@ -25,7 +25,7 @@ xenomorph() {
 	dom0_root="/"
 	dom0_cpus=2
 	dom0_mem="4096"
-	serial_string=""
+	console_string="console=vga"
 	uefi=""
 
 	while getopts r:c:m:es opts ; do
@@ -46,14 +46,17 @@ xenomorph() {
 		m)
 			dom0_mem="$OPTARG"
 			# Simple math test to verify that it is an integer
-			[ $(( "$dom0_mem" * 1 )) ] || \
-			{ echo Dom0 RAM allocation invalid ; return 1 ; }
+			# Removing for a better test given that the input
+			# is likely 8g or something
+			#[ $(( "$dom0_mem" * 1 )) ] || \
+			#{ echo Dom0 RAM allocation invalid ; return 1 ; }
 			;;
 		e)
 			uefi="yes"
+	sysrc -f $dom0_root/boot/loader.conf efi_max_resolution="640x480"
 			;;
 		s)
-			serial_string="console=vga,com1 com1=115200,8n1"
+			console_string="console=com1=115200,8n1 console=com1,vga sync_console"
 			# sysrc does not support this and attempting idempotence
 			if [ -f $dom0_root/boot.config ] ; then
 				grep S115200 $dom0_root/boot.config || \
@@ -95,7 +98,7 @@ xenomorph() {
 		{ echo $dom0_root/etc/ttys configuration failed ; return 1 ; }
 
 	sysrc -f $dom0_root/boot/loader.conf xen_kernel="/boot/xen"
-	sysrc -f $dom0_root/boot/loader.conf xen_cmdline="dom0_mem=${dom0_mem}M dom0_max_vcpus=4 dom0=pvh $serial_string guest_loglvl=all loglvl=all"
+	sysrc -f $dom0_root/boot/loader.conf xen_cmdline="dom0=pvh dom0_mem=${dom0_mem}M dom0_max_vcpus=4 $console_string guest_loglvl=all loglvl=all"
 
 # Decide if this is one to remove upon request as it is not Xen-specific
 	sysrc -f $dom0_root/boot/loader.conf if_tap_load="YES"
