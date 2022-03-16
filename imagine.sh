@@ -281,7 +281,7 @@ echo "$password" | pw -R /media/ usermod -n root -h 0
 
 # SERIAL OUTPUT
 
-echo ; echo Enable serial port?
+echo ; echo Enable serial output?
 echo -n "(y/n): " ; read serial
 if [ "$serial" = "y" ] ; then
 	echo Configurating /boot.config and /boot/loader.conf for serial output
