@@ -45,6 +45,7 @@ Installing /usr/src and Xen Dom0 configuration are currently only performed afte
 * Install packages, even if configuring a current image on a release host
 * Install distribution sets for use with bsdinstall
 * Install /usr/src to a rezied and grown file system
+* Enable image to be a bhyve VM guest image with load, boot, and destroy scripts
 * Enable image to be a Xen DomU VM guest configuration file and boot script
 * Enable image to be a Xen Dom0 host using xenomorph
 * dd(1) the VM image to a hardware device

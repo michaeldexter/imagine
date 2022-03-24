@@ -278,7 +278,7 @@ echo ; echo Setting root password with pw
 #pw -R /media/
 echo "$password" | pw -R /media/ usermod -n root -h 0
 
-echo ; echo Will the target system boot UEFI?
+echo ; echo Will the target system boot UEFI? \(Used for serial output and Dom0 settings\)
 echo -n "(y/n): " ; read uefi
 
 
@@ -433,6 +433,30 @@ if [ "$src" = "y" ] ; then
 fi
 
 
+# OPTIONAL bhyve VM SUPPORT
+
+echo
+echo Generate bhyve VM guest load and boot scripts?
+echo -n "(y/n): " ; read bhyve
+if [ "$bhyve" = "y" ] ; then
+
+cat << EOF > "$work_dir/$version/load-bhyve.sh"
+[ -e /dev/vmm/occambsd ] && bhyvectl --destroy --vm=occambsd
+sleep 1
+bhyveload -d $work_dir/$version/$img -m 1024 occambsd
+EOF
+	echo $work_dir/$version/load-bhyve.sh
+
+	cat << EOF > "$work_dir/$version/load-bhyve.sh"
+bhyve -m 1024 -H -A -s 0,hostbridge -s 2,virtio-blk,$work_dir/$version/$img -s 31,lpc -l com1,stdio occambsd
+EOF
+	echo $work_dir/$version/boot-bhyve.sh
+	cat << EOF > "$work_dir/$version/destroy-bhyve.sh"
+bhyvectl --destroy --vm=occambsd
+EOF
+fi
+
+
 # OPTIONAL XEN DOMU SUPPORT
 
 echo
@@ -503,23 +527,6 @@ if [ "$dom0" = "y" ] ; then
 		$uefi_flag $serial_flag || \
 			{ echo xenomorph failed ; exit 1 ; }
 fi
-
-
-
-echo DEBUG!!! xenomorph ran xenomorph -r /media -m $dom0_mem -c $dom0_cpus $uefi_flag $serial_flag
-
-echo and resulted in:
-cat /media/boot/loader.conf
-echo look okay?
-
-read omg
-
-
-
-
-
-
-
 
 
 # FINAL REVIEW
@@ -607,7 +614,7 @@ CID=12345678
 parentCID=ffffffff
 createType="vmfs"
 
-RW $(( "$size_bytes" / 512 )) VMFS ${img_base}-flat.vmdk
+RW $(( "$size_bytes" / 512 )) VMFS \"${img_base}-flat.vmdk\"
 
 ddb.virtualHWVersion = "4"
 ddb.geometry.cylinders = "$cylinders"
