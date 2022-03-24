@@ -552,13 +552,14 @@ if [ "$umount" = "y" ] ; then
 	mdconfig -du $md_id || \
 		{ echo $md_id destroy failed ; mdconfig -lv ; exit 1 ; }
 else
-	You can manually run \'umount /media\' and \'mdconfig -du $md_id\'
+	echo ; You can manually run \'umount /media\' and \'mdconfig -du $md_id\'
 	echo ; echo Exiting ; exit 0
 fi
 
 
 # HARDWARE DEVICE HANDLING
 
+# Add a check if it is mounted
 echo ; echo dd the configured VM image to a device?
 echo -n "(y/n): " ; read dd
 if [ "$dd" = "y" ] ; then
@@ -614,7 +615,7 @@ CID=12345678
 parentCID=ffffffff
 createType="vmfs"
 
-RW $(( "$size_bytes" / 512 )) VMFS \"${img_base}-flat.vmdk\"
+RW $(( "$size_bytes" / 512 )) VMFS "${img_base}-flat.vmdk"
 
 ddb.virtualHWVersion = "4"
 ddb.geometry.cylinders = "$cylinders"
