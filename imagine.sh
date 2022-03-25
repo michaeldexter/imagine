@@ -81,7 +81,10 @@ if [ -f "$work_dir/$version/$xzimg" ] ; then
 	echo ; echo $xzimg exists. Fetch fresh?
 echo -n "(y/n): " ; read freshimg
 	if [ "$freshimg" = "y" ] ; then
-		rm "$work_dir/$version/$xzimg"
+		#rm "$work_dir/$version/$xzimg"
+		echo ; echo Moving "$work_dir/$version/$xzimg" to \
+			"$work_dir/$version/${xzimg}.prev"
+		mv "$work_dir/$version/$xzimg" "$work_dir/$version/$xzimg.prev"
 		echo ; echo Feching $img from $img_url
 		# NOT WORKING
 		#fetch -qo - $img_url | tar -xf -
@@ -382,7 +385,7 @@ if [ "$dist" = "y" ] ; then
 		fetch $dist_url/base.txz
 		fetch $dist_url/kernel-dbg.txz
 		fetch $dist_url/kernel.txz
-		fetch $dist_url/lib32-dgb.txz
+		fetch $dist_url/lib32-dbg.txz
 		fetch $dist_url/lib32.txz
 		fetch $dist_url/ports.txz
 		fetch $dist_url/src.txz
