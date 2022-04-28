@@ -620,11 +620,18 @@ createType="vmfs"
 
 RW $(( "$size_bytes" / 512 )) VMFS "${img_base}-flat.vmdk"
 
-ddb.virtualHWVersion = "4"
+# The Disk Data Base 
+#DDB
+
+ddb.adapterType = "lsilogic"
+ddb.encoding = "UTF-8"
 ddb.geometry.cylinders = "$cylinders"
 ddb.geometry.heads = "255"
 ddb.geometry.sectors = "63"
-ddb.adapterType = "lsilogic"
+ddb.longContentID = "0123456789abcdefghijklmnopqrstuv"
+ddb.toolsInstallType = "0"
+ddb.toolsVersion = "2147483647"
+ddb.virtualHWVersion = "4"
 EOF
 	echo ; echo The resulting "${img_base}.vmdk" wrapper reads: ; echo
 	cat "$work_dir/$version/${img_base}.vmdk"

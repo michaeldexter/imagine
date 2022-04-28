@@ -58,7 +58,7 @@ xenomorph() {
 	sysrc -f $dom0_root/boot/loader.conf efi_max_resolution="640x480"
 			;;
 		s)
-			console_string="console=com1=115200,8n1 console=com1,vga sync_console"
+			console_string="com1=115200,8n1 console=com1,vga sync_console"
 			# sysrc does not support this and attempting idempotence
 			if [ -f $dom0_root/boot.config ] ; then
 				grep S115200 $dom0_root/boot.config || \
